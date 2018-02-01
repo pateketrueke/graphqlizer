@@ -56,46 +56,31 @@ module.exports = callback => {
   };
 
   // instantiate types and such
-  _graphql.load = (definitions, cb) =>
+  _graphql.load = (definitions, cb) => {
     Object.keys(definitions).forEach(name => {
-      if (definitions[name].options.$graphql) {
-        if (typeof definitions[name].options.$graphql === 'string') {
-          _graphql.schemas.push(definitions[name].options.$graphql.trim());
-        }
+      if (definitions[name].options.$graphql && !definitions[name].virtual) {
+        const fields = graphqlSequelize.attributeFields(definitions[name]);
 
-        if (definitions[name].options.graphqlMutators) {
-          _graphql.resolvers.push(typeof cb === 'function'
-            ? cb(definitions[name].options.graphqlMutators)
-            : definitions[name].options.graphqlMutators);
-        }
+        Object.keys(definitions[name].attributes).forEach(k => {
+          const values = definitions[name].attributes[k].type.values;
+          const field = fields[k].type.name;
 
-        if (definitions[name].options.graphqlResolvers) {
-          _graphql.resolvers.push(typeof cb === 'function'
-            ? cb(definitions[name].options.graphqlResolvers)
-            : definitions[name].options.graphqlResolvers);
-        }
+          if (field && values) {
+            _graphql.schemas.push(`enum ${field} {\n  ${values.join('\n  ')}\n}`);
+          }
+        });
 
-        if (!definitions[name].virtual) {
-          const fields = graphqlSequelize.attributeFields(definitions[name]);
-
-          Object.keys(definitions[name].attributes).forEach(k => {
-            const values = definitions[name].attributes[k].type.values;
-            const field = fields[k].type.name;
-
-            if (field && values) {
-              _graphql.schemas.push(`enum ${field} {\n  ${values.join('\n  ')}\n}`);
-            }
-          });
-
-          _graphql.schemas.push(`type ${name} {\n  ${Object.keys(fields)
-            .map(k => `${k}: ${fields[k].type}`)
-            .join('\n  ')}\n}`);
-        }
+        _graphql.schemas.push(`type ${name} {\n  ${Object.keys(fields)
+          .map(k => `${k}: ${fields[k].type}`)
+          .join('\n  ')}\n}`);
       }
     });
 
+    return _graphql;
+  };
+
   // load definitions
-  _graphql.add = (paths, cb) => {
+  _graphql.scan = (paths, cb) => {
     const definitions = (!Array.isArray(paths) ? [paths] : paths)
       .reduce((prev, cur) => {
         if (cur.indexOf('.graphql') === -1 && cur.indexOf('.gql') === -1 && cur.indexOf('.js') === -1) {
@@ -111,7 +96,7 @@ module.exports = callback => {
     definitions.forEach(file => {
       const name = path.basename(file);
 
-      if (name === 'resolvers.js' || name === 'mutators.js') {
+      if (/resolvers?/i.test(name) || /mutat(?:or|ion)/i.test(name)) {
         let resolver = require(file);
 
         if (typeof resolver === 'function') {
@@ -127,6 +112,30 @@ module.exports = callback => {
         _graphql.schemas.push(fs.readFileSync(file).toString().trim());
       }
     });
+
+    return _graphql;
+  };
+
+  _graphql.add = (definitions, cb) => {
+    definitions.forEach(x => {
+      if (x.$graphql) {
+        _graphql.schemas.push(x.$graphql);
+      }
+
+      if (x.graphqlMutators) {
+        _graphql.resolvers.push(typeof cb === 'function'
+          ? cb(x.graphqlMutators)
+          : x.graphqlMutators);
+      }
+
+      if (x.graphqlResolvers) {
+        _graphql.resolvers.push(typeof cb === 'function'
+          ? cb(x.graphqlResolvers)
+          : x.graphqlResolvers);
+      }
+    });
+
+    return _graphql;
   };
 
   // lazy loading
