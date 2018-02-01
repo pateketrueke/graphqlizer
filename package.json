@@ -1,0 +1,16 @@
+{
+  "name": "graphql-sequelizer",
+  "version": "0.1.0",
+  "description": "",
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "glob": "^7.1.2",
+    "graphql": "^0.12.3",
+    "graphql-sequelize": "^5.6.1",
+    "graphql-tools": "^2.19.0",
+    "merge-graphql-schemas": "^1.4.0"
+  }
+}
